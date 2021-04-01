@@ -3,7 +3,9 @@
 
     <transition name="fade">
       <!--    登录弹窗-->
-      <Login id="login" v-if="loginVisible"/>
+      <Login v-model="loginVisible" id="login" v-if="loginVisible"/>
+
+      <ManageAccountPop v-model="manageAccountVisible" id="manage_account" v-if="manageAccountVisible"/>
     </transition>
 
     <img id="logo" src="../assets/logo.png" alt="logo"/>
@@ -21,36 +23,56 @@
     </div>
 
     <div id="background"/>
-    <img id="avatar" src="../assets/avatar.png" alt="avatar"
-         @click="loginVisible=!loginVisible">
-
+    <img id="avatar"
+         alt="avatar"
+         :src="avatarUrl!=='' ? avatarUrl : defaultAvatar"
+         @click="clickAvatar">
   </div>
 </template>
 
 <script>
-import Login from "@/components/Login";
+import Login from "@/components/LoginPop";
+import ManageAccountPop from "@/components/ManageAccountPop";
 
 export default {
   name:'Search',
-  components:{Login},
+  components:{ManageAccountPop,Login},
   props:{
     msg:String
+  },
+  watch:{
+    loginVisible(){
+      this.avatarUrl= this.$store.state.avatarUrl
+    },
+    manageAccountVisible(){
+      this.avatarUrl= this.$store.state.avatarUrl
+    }
   },
   data(){
     return {
       searchWord:'',
-      loginVisible:false
+      loginVisible:false,
+      manageAccountVisible:false,
+      avatarUrl: this.$store.state.avatarUrl,
+      defaultAvatar:require('../assets/avatar.png')
     }
   },
   methods:{
     routeToHome:function(){
       this.$router.push({
-        path: '/home',
-        name: 'Home',
-        query: {
-          searchWord: this.searchWord
+        path:'/home',
+        name:'Home',
+        query:{
+          searchWord:this.searchWord
         }
       })
+    },
+    clickAvatar(){
+      if(this.$store.state.account===''){
+        this.loginVisible=!this.loginVisible
+      }else{
+        this.manageAccountVisible=!this.manageAccountVisible
+      }
     }
   }
 }
@@ -86,6 +108,13 @@ a {
   right: 50px;
 }
 
+#manage_account {
+  width: 240px;
+  position: absolute;
+  top: 100px;
+  right: 50px;
+}
+
 #logo {
   margin-top: 8%;
   width: 30%;
@@ -101,6 +130,7 @@ a {
 #avatar {
   width: 40px;
   height: 40px;
+  border-radius: 50%;
   position: absolute;
   alignment: right;
   top: 50px;

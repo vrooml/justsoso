@@ -1,5 +1,11 @@
 <template>
   <div class="home">
+    <transition name="fade">
+      <!--    登录弹窗-->
+      <Login v-model="loginVisible" id="login" v-if="loginVisible"/>
+
+      <ManageAccountPop v-model="manageAccountVisible" id="manage_account" v-if="manageAccountVisible"/>
+    </transition>
 
     <el-row align="middle" type="flex">
       <el-col :span="4">
@@ -11,15 +17,16 @@
                     placeholder="搜索论文题目 / 摘要 / 关键字 / 作者"
                     v-model="searchInput"
                     clearable="clearable">
-            <el-button id="search_button_home" slot="suffix" icon="el-icon-search" circle/>
           </el-input>
         </div>
       </el-col>
       <el-col :span="4">
         <div style="display: flex;margin-left: 50px ">
-          <img id="avatar_home" src="../assets/avatar.png" alt="avatar"
-               @click="loginVisible=!loginVisible">
-          <div id="nickname">请登录</div>
+          <img id="avatar_home"
+               alt="avatar"
+               :src="avatarUrl!=='' ? avatarUrl : defaultAvatar"
+               @click="clickAvatar">
+          <div id="nickname">{{ this.$store.state.username }}</div>
         </div>
       </el-col>
     </el-row>
@@ -27,46 +34,51 @@
     <div style="display: flex ;margin-top: 30px;margin-left: 50px">
       <a :class="['tab', currentTab===1 ? 'tab_underline' : 'left-to-right' ]" id="search_tab" @click="currentTab=1">论文列表</a>
       <a :class="['tab', currentTab===2 ? 'tab_underline' : 'left-to-right' ]" id="analyze_tab" @click="currentTab=2">论文结果统计</a>
-      <a :class="['tab', currentTab===3 ? 'tab_underline' : 'left-to-right' ]" id="manage_tab" @click="currentTab=3">爬取记录</a>
+      <a :class="['tab', currentTab===3 ? 'tab_underline' : 'left-to-right' ]" id="manage_tab" @click="showCollection">爬取记录</a>
     </div>
 
 
     <SearchList v-if="currentTab===1"
-                :check-all="checkAll" :checked-papers="checkedPapers" :handle-check-all-change="handleCheckAllChange"
-                :handle-checked-papers-change="handleCheckedPapersChange" :is-empty="isEmpty"
-                :is-indeterminate="isIndeterminate" :papers="papers"/>
+                 :searchWord="searchWord" :searchInput="searchInput"/>
+    <statisticList v-if="currentTab===2"
+                   :searchInput="searchInput"/>
+    <CollectionList v-if="currentTab===3"
+                 :searchInput="searchInput"/>
 
     <div id="background_home"/>
   </div>
 </template>
 
 <script>
-
-import axios from "axios";
-import SearchList from "@/views/SearchList";
+import SearchList from "@/components/SearchList";
+import CollectionList from "@/components/collectionList";
+import StatisticList from "@/components/statisticList";
+import Login from "@/components/LoginPop";
+import ManageAccountPop from "@/components/ManageAccountPop";
 
 export default {
   name:'Home',
-  components:{SearchList},
+  components:{
+    StatisticList,CollectionList,SearchList,
+    Login,ManageAccountPop
+  },
+  watch:{
+    loginVisible(){
+      this.avatarUrl= this.$store.state.avatarUrl
+    },
+    manageAccountVisible(){
+      this.avatarUrl= this.$store.state.avatarUrl
+    }
+  },
   data(){
     return {
       searchInput:'',
-
-      papers:[],
       message:'testtest',
       searchWord:'',
-
-      checkAll:false,
-      checkedPapers:[],
-      paperIds:[],
-      isIndeterminate:false,
-
-      isEmpty:true,
-      isReadyLoad:false,
-      pageNum:0,
-      totalPageNum:0,
-      totalPaperNum:0,
-
+      loginVisible:false,
+      manageAccountVisible:false,
+      avatarUrl:this.$store.state.avatarUrl,
+      defaultAvatar:require('../assets/avatar.png'),
       currentTab: 1
     }
   },
@@ -74,90 +86,24 @@ export default {
     routeToSearch:function(){
       this.$router.push("/")
     },
-    searchSuccess(totalNum){
-      this.$message({
-        message:'搜索成功,共'+totalNum+'页',
-        type:'success'
-      });
-      this.isReadyLoad=true
-    },
 
-    handleCheckAllChange(val){
-      this.checkedPapers=val?this.paperIds:[];
-      this.isIndeterminate=false;
-    },
-
-    handleCheckedPapersChange(value){
-      let checkedCount=value.length;
-      this.checkAll=checkedCount===this.paperIds.length;
-      this.isIndeterminate=checkedCount>0&&checkedCount<this.paperIds.length;
-    },
-
-    //触底触发函数
-    listenBottomOut(){
-      let scrollTop=document.documentElement.scrollTop||document.body.scrollTop;
-      let clientHeight=document.documentElement.clientHeight;
-      let scrollHeight=document.documentElement.scrollHeight;
-      if(scrollTop+clientHeight>=scrollHeight-1&&this.isReadyLoad===true){
-        this.isReadyLoad=false
-        this.search()
+    showCollection(){
+      if(this.$store.state.account!==''){
+        this.currentTab=3
+      }else{
+        this.$message.warning("请先登录")
       }
     },
 
-    search(){
-      if((this.pageNum<this.totalPageNum||this.totalPageNum===0)&&this.searchWord!==undefined){
-        axios
-            .get('http://121.5.100.116:8080/api/search?keyword='+this.searchWord+'&pageNum='+this.pageNum)
-            .then(response=>{
-              this.papers=this.papers.concat(response.data.data.list);
-              for(var paper of response.data.data.list){
-                this.paperIds.push(paper.artical.academicNum)
-              }
-              this.totalPageNum=response.data.data.totalNum;
-              if(this.pageNum===0){
-                if(this.totalPageNum!==0){
-                  this.isEmpty=false
-                  this.searchSuccess(this.totalPageNum)
-                }else{
-                  this.$message({
-                    message:'未搜索到文章',
-                    type:'warning'
-                  });
-                  this.isEmpty=true
-                }
-              }else{
-                this.$message({
-                  message:'请求第'+(this.pageNum+1)+'页',
-                  type:'success'
-                });
-              }
-            })
-            .finally(()=>{
-              this.pageNum++;
-              this.isReadyLoad=true
-            })
+    clickAvatar(){
+      if(this.$store.state.account===''){
+        this.loginVisible=!this.loginVisible
       }else{
-        this.$message({
-          message:'没有更多了',
-          type:'warning'
-        });
+        this.manageAccountVisible=!this.manageAccountVisible
       }
     }
 
   },
-  created(){
-    this.searchWord=this.$route.query.searchWord;
-    this.search()
-  },
-  mounted(){
-    //事件监听
-    window.addEventListener('scroll',this.listenBottomOut)
-  },
-  //vue 的生命周期钩子函数
-  destroyed(){
-    //离开页面取消监听
-    window.removeEventListener('scroll',this.listenBottomOut,false)
-  }
 
 }
 </script>
@@ -255,27 +201,23 @@ a, a:link, a:visited, a:focus {
 }
 
 #search_div_home {
-  margin-top: 10px;
+  //margin-top: 10px;
+  position: fixed;
+  top: 40px;
+  z-index: 100;
+  width: 65%;
+  filter:drop-shadow( 5px 5px 5px rgba(25, 25, 25, .25));
 }
 
 #search_input_home {
   border-radius: 100px;
 }
 
-#search_button_home {
-  border: none;
-  background-color: rgba(0, 0, 0, 0);
-}
-
-#search_button_home:hover {
-  background-color: rgba(0, 0, 0, 0);
-}
-
 #avatar_home {
   width: 40px;
   height: 40px;
   margin-top: 10px;
-  margin-left: 30px;
+  border-radius: 50%;
   transition: transform .3s ease-in-out, box-shadow .3s cubic-bezier(.47, 0, .745, .715), border .3s linear .1s;
 }
 
@@ -284,7 +226,6 @@ a, a:link, a:visited, a:focus {
   margin-top: 18px;
   margin-left: 20px;
   font-weight: bold;
-  letter-spacing: 3px;
   color: white;
   transition: transform .3s ease-in-out, box-shadow .3s cubic-bezier(.47, 0, .745, .715), border .3s linear .1s;
 }
